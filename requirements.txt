@@ -1,0 +1,8 @@
+easyocr==1.7.1
+opencv-python==4.8.1
+numpy==1.24.3
+pandas==2.1.1
+pillow==10.0.1
+fastapi==0.104.1
+python-multipart==0.0.6
+uvicorn==0.24.0 
