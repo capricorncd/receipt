@@ -1,5 +1,6 @@
 import os
 import logging
+import argparse
 from src.scanner import ReceiptScanner
 import time
 
@@ -9,9 +10,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def main():
+def main(receipts_dir="receipts", output_dir="output"):
     # 创建receipts目录（如果不存在）
-    receipts_dir = "receipts"
     os.makedirs(receipts_dir, exist_ok=True)
     
     # 初始化扫描器
@@ -35,7 +35,6 @@ def main():
     logger.info(f"处理完成 {len(results)} 个文件，用时 {elapsed_time:.2f} 秒")
     
     # 保存识别结果
-    output_dir = "output"
     os.makedirs(output_dir, exist_ok=True)
     
     for result in results:
@@ -48,4 +47,19 @@ def main():
         logger.info(f"结果已保存到: {output_path}")
 
 if __name__ == "__main__":
-    main() 
+    parser = argparse.ArgumentParser(description="收据识别工具")
+    parser.add_argument(
+        "--input", "-i",
+        type=str,
+        default="receipts",
+        help="输入目录路径 (默认: receipts)"
+    )
+    parser.add_argument(
+        "--output", "-o",
+        type=str,
+        default="output",
+        help="输出目录路径 (默认: output)"
+    )
+    
+    args = parser.parse_args()
+    main(receipts_dir=args.input, output_dir=args.output) 

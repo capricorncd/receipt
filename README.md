@@ -96,6 +96,34 @@ python main.py
 
 3. 处理结果将保存在 `output` 文件夹中
 
+#### 命令行参数
+
+可以使用命令行参数指定输入和输出目录：
+
+```bash
+# 使用默认目录（receipts 和 output）
+python main.py
+
+# 指定输入目录
+python main.py --input /path/to/receipts
+
+# 指定输出目录
+python main.py --output /path/to/output
+
+# 同时指定输入和输出目录
+python main.py --input /path/to/receipts --output /path/to/results
+
+# 使用缩写形式
+python main.py -i /path/to/receipts -o /path/to/results
+```
+
+**参数说明：**
+
+| 参数 | 缩写 | 说明 | 默认值 |
+|------|------|------|--------|
+| `--input` | `-i` | 输入目录路径（票据图片存放位置） | `receipts` |
+| `--output` | `-o` | 输出目录路径（识别结果保存位置） | `output` |
+
 ### API服务模式
 
 1. 启动API服务：
