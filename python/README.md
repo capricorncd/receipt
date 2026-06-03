@@ -1,4 +1,4 @@
-# 日本票据识别系统 (Japanese Receipt Scanner)
+# Invoice content recognition
 
 这个项目用于识别日本各类票据（购物小票、餐饮单据、水电气费账单、交通费用等）中的明细信息。
 
