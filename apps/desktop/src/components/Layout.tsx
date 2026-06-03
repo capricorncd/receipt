@@ -1,0 +1,50 @@
+import { useEffect, useRef } from 'react';
+import { DirectorySidebar } from './DirectorySidebar';
+import { ReceiptPanel } from './ReceiptPanel';
+import { useAppStore, getPersistedDirectories } from '../stores/app-store';
+import type { Locale } from '../i18n';
+
+export function Layout() {
+  const directoryList = useAppStore((s) => s.directoryList);
+  const restoreDirectories = useAppStore((s) => s.restoreDirectories);
+  const setLocale = useAppStore((s) => s.setLocale);
+  const hasRestored = useRef(false);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onLocaleChange) return;
+    const unsub = window.electronAPI.onLocaleChange((locale: string) => {
+      if (locale === 'zh' || locale === 'en' || locale === 'ja') {
+        setLocale(locale as Locale);
+      }
+    });
+    return unsub;
+  }, [setLocale]);
+
+  useEffect(() => {
+    if (hasRestored.current) return;
+    if (directoryList.length > 0) return;
+    const saved = getPersistedDirectories();
+    if (!saved?.directoryList?.length || !window.electronAPI?.addDirectoryByPath) return;
+    hasRestored.current = true;
+    (async () => {
+      const restored: string[] = [];
+      for (const dir of saved.directoryList) {
+        const resolved = await window.electronAPI.addDirectoryByPath(dir);
+        if (resolved) restored.push(resolved);
+      }
+      if (restored.length === 0) return;
+      const norm = (p: string) => p.replace(/[/\\]+$/, '');
+      const preferredCurrent = saved.currentDir ? norm(saved.currentDir) : '';
+      const match = restored.find((d) => norm(d) === preferredCurrent);
+      const preferred = match ?? restored[0] ?? null;
+      restoreDirectories(restored, preferred);
+    })();
+  }, [directoryList.length, restoreDirectories]);
+
+  return (
+    <div className="flex h-screen w-screen min-w-0 overflow-hidden bg-zinc-900 text-zinc-200">
+      <DirectorySidebar />
+      <ReceiptPanel />
+    </div>
+  );
+}

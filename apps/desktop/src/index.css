@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand: #076beb;
+  --color-brand-hover: #055ecf;
+  --color-brand-light: #4d94f7;
+  --color-brand-muted: #076beb4d;
+  --color-brand-subtle: #076beb26;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+/* 隐藏垂直滚动条 */
+::-webkit-scrollbar {
+  width: 0px;
+  height: 8px;
+}
