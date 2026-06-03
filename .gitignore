@@ -178,3 +178,5 @@ node_modules/
 dist-electron/
 
 release/
+
+!apps/desktop/build
