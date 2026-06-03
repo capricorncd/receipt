@@ -176,3 +176,5 @@ output/
 node_modules/
 
 dist-electron/
+
+release/
