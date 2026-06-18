@@ -63,13 +63,18 @@ const electronAPI = {
       error?: string;
     }>;
   },
+  /** 检查目录下是否存在同名文件 */
+  fileExistsInDir(dirPath: string, fileName: string): Promise<boolean> {
+    return ipcRenderer.invoke('fs:fileExistsInDir', dirPath, fileName) as Promise<boolean>;
+  },
   /** 在当前目录下创建小票文本文件 */
   createReceiptFile(
     dirPath: string,
     fileName: string,
-    content: string
+    content: string,
+    overwrite?: boolean
   ): Promise<{ ok: boolean; filePath?: string; error?: string }> {
-    return ipcRenderer.invoke('fs:createReceiptFile', dirPath, fileName, content) as Promise<{
+    return ipcRenderer.invoke('fs:createReceiptFile', dirPath, fileName, content, overwrite) as Promise<{
       ok: boolean;
       filePath?: string;
       error?: string;
@@ -99,9 +104,10 @@ const electronAPI = {
   },
   renameFile(
     filePath: string,
-    newFileName: string
+    newFileName: string,
+    overwrite?: boolean
   ): Promise<{ ok: boolean; newPath?: string; error?: string }> {
-    return ipcRenderer.invoke('fs:renameFile', filePath, newFileName) as Promise<{
+    return ipcRenderer.invoke('fs:renameFile', filePath, newFileName, overwrite) as Promise<{
       ok: boolean;
       newPath?: string;
       error?: string;

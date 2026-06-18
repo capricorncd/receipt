@@ -15,6 +15,8 @@ import {
   watchDirectory,
   isPathUnderBase,
   createTextFile,
+  fileExistsInDir,
+  renameFileInPlace,
 } from './services/file-service.js';
 import {
   getPreviewKind,
@@ -323,31 +325,30 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    'fs:fileExistsInDir',
+    async (_, dirPath: string, fileName: string): Promise<boolean> => {
+      if (!dirPath || typeof dirPath !== 'string') return false;
+      const resolvedDir = path.resolve(dirPath);
+      const roots = getOpenedRoots();
+      const underAny = roots.some((root) => isPathUnderBase(resolvedDir, root));
+      if (!underAny) return false;
+      return fileExistsInDir(resolvedDir, fileName);
+    }
+  );
+
+  ipcMain.handle(
     'fs:renameFile',
     async (
       _,
       filePath: string,
-      newFileName: string
+      newFileName: string,
+      overwrite = false
     ): Promise<{ ok: boolean; newPath?: string; error?: string }> => {
       if (!validateUnderRoot(filePath)) {
         return { ok: false, error: '路径不在当前工作目录内' };
       }
-      const trimmed = typeof newFileName === 'string' ? newFileName.trim() : '';
-      if (!trimmed) return { ok: false, error: '文件名不能为空' };
-      if (/[/\\]/.test(trimmed)) {
-        return { ok: false, error: '文件名不能包含路径分隔符' };
-      }
       try {
-        const resolved = path.resolve(filePath);
-        const dir = path.dirname(resolved);
-        const newPath = path.join(dir, trimmed);
-        if (path.resolve(newPath) === resolved) {
-          return { ok: true, newPath: resolved };
-        }
-        if (fs.existsSync(newPath)) {
-          return { ok: false, error: '目标文件已存在' };
-        }
-        await fs.promises.rename(resolved, newPath);
+        const newPath = await renameFileInPlace(path.resolve(filePath), newFileName, overwrite);
         return { ok: true, newPath };
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -377,7 +378,8 @@ export function registerIpcHandlers(): void {
       _,
       dirPath: string,
       fileName: string,
-      content: string
+      content: string,
+      overwrite = false
     ): Promise<{ ok: boolean; filePath?: string; error?: string }> => {
       if (!dirPath || typeof dirPath !== 'string') {
         return { ok: false, error: '无效目录' };
@@ -389,7 +391,7 @@ export function registerIpcHandlers(): void {
         return { ok: false, error: '路径不在当前工作目录内' };
       }
       try {
-        const filePath = await createTextFile(resolvedDir, fileName, content ?? '');
+        const filePath = await createTextFile(resolvedDir, fileName, content ?? '', overwrite);
         return { ok: true, filePath };
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) };

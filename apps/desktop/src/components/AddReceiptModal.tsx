@@ -9,6 +9,7 @@ import {
 import { formatPrice, tryParseReceiptFileName } from '../lib/receipt-parser';
 import { t } from '../i18n';
 import { UiButton } from './ui';
+import { OverwriteConfirmDialog } from './OverwriteConfirmDialog';
 
 interface AddReceiptModalProps {
   dirPath: string;
@@ -35,6 +36,7 @@ export function AddReceiptModal({ dirPath, categories, onClose, onSaved }: AddRe
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
 
   const resolvedType =
     categoryKey === CATEGORY_OTHER ? customType.trim() : categoryKey.trim();
@@ -72,63 +74,76 @@ export function AddReceiptModal({ dirPath, categories, onClose, onSaved }: AddRe
     }
   }, [date, hour, minute, second, price, resolvedType, description]);
 
-  const handleSave = useCallback(async (): Promise<boolean> => {
-    const trimmedType = resolvedType;
-    const trimmedPrice = price.trim();
-    if (!trimmedType) {
-      setError(t('addReceipt.typeRequired'));
-      return false;
-    }
-    if (!trimmedPrice) {
-      setError(t('addReceipt.priceRequired'));
-      return false;
-    }
-    let dateRaw: string;
-    try {
-      dateRaw = toDateRaw(date);
-    } catch {
-      setError(t('addReceipt.dateInvalid'));
-      return false;
-    }
-    try {
-      formatPrice(trimmedPrice);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      return false;
-    }
-
-    const timeRaw = resolveTimeRaw(hour, minute, second);
-    const fileName = buildReceiptFileName({
-      dateRaw,
-      timeRaw,
-      price: trimmedPrice,
-      type: trimmedType,
-      description,
-    });
-
-    if (!tryParseReceiptFileName(fileName, '')) {
-      setError(t('addReceipt.fileNameInvalid'));
-      return false;
-    }
-
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await window.electronAPI.createReceiptFile(dirPath, fileName, '');
-      if (res.ok) {
-        onSaved();
-        onClose();
-        return true;
+  const performSave = useCallback(
+    async (overwrite = false): Promise<boolean> => {
+      const trimmedType = resolvedType;
+      const trimmedPrice = price.trim();
+      if (!trimmedType) {
+        setError(t('addReceipt.typeRequired'));
+        return false;
       }
-      setError(res.error ?? t('addReceipt.saveFailed'));
-      return false;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      return false;
-    } finally {
-      setSaving(false);
-    }
-  }, [date, hour, minute, second, price, resolvedType, description, dirPath, onClose, onSaved]);
+      if (!trimmedPrice) {
+        setError(t('addReceipt.priceRequired'));
+        return false;
+      }
+      let dateRaw: string;
+      try {
+        dateRaw = toDateRaw(date);
+      } catch {
+        setError(t('addReceipt.dateInvalid'));
+        return false;
+      }
+      try {
+        formatPrice(trimmedPrice);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        return false;
+      }
+
+      const timeRaw = resolveTimeRaw(hour, minute, second);
+      const fileName = buildReceiptFileName({
+        dateRaw,
+        timeRaw,
+        price: trimmedPrice,
+        type: trimmedType,
+        description,
+      });
+
+      if (!tryParseReceiptFileName(fileName, '')) {
+        setError(t('addReceipt.fileNameInvalid'));
+        return false;
+      }
+
+      if (!overwrite) {
+        const exists = await window.electronAPI.fileExistsInDir(dirPath, fileName);
+        if (exists) {
+          setShowOverwriteConfirm(true);
+          return false;
+        }
+      }
+
+      setSaving(true);
+      setError(null);
+      try {
+        const res = await window.electronAPI.createReceiptFile(dirPath, fileName, '', overwrite);
+        if (res.ok) {
+          onSaved();
+          onClose();
+          return true;
+        }
+        setError(res.error ?? t('addReceipt.saveFailed'));
+        return false;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [date, hour, minute, second, price, resolvedType, description, dirPath, onClose, onSaved]
+  );
+
+  const handleSave = useCallback(() => performSave(false), [performSave]);
 
   const handleAttemptClose = useCallback(() => {
     if (saving) return;
@@ -146,8 +161,13 @@ export function AddReceiptModal({ dirPath, categories, onClose, onSaved }: AddRe
 
   const handleSaveAndClose = useCallback(async () => {
     setShowCloseConfirm(false);
-    await handleSave();
-  }, [handleSave]);
+    await performSave(false);
+  }, [performSave]);
+
+  const handleOverwriteConfirm = useCallback(async () => {
+    setShowOverwriteConfirm(false);
+    await performSave(true);
+  }, [performSave]);
 
   return (
     <div
@@ -185,6 +205,15 @@ export function AddReceiptModal({ dirPath, categories, onClose, onSaved }: AddRe
               </div>
             </div>
           </div>
+        )}
+
+        {showOverwriteConfirm && previewFileName && (
+          <OverwriteConfirmDialog
+            fileName={previewFileName}
+            saving={saving}
+            onConfirm={handleOverwriteConfirm}
+            onCancel={() => setShowOverwriteConfirm(false)}
+          />
         )}
 
         <div className="flex shrink-0 items-center justify-between border-b border-zinc-700 px-4 py-3">

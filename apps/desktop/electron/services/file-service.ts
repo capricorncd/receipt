@@ -79,11 +79,18 @@ export function watchDirectory(
   };
 }
 
-/** 在指定目录下创建文本文件（不覆盖已存在文件） */
+/** 检查目录下是否存在同名文件 */
+export function fileExistsInDir(dirPath: string, fileName: string): boolean {
+  if (!fileName || /[/\\]/.test(fileName)) return false;
+  return fs.existsSync(path.join(dirPath, fileName));
+}
+
+/** 在指定目录下创建文本文件 */
 export async function createTextFile(
   dirPath: string,
   fileName: string,
-  content: string
+  content: string,
+  overwrite = false
 ): Promise<string> {
   if (!fileName || typeof fileName !== 'string') {
     throw new Error('无效文件名');
@@ -92,11 +99,36 @@ export async function createTextFile(
     throw new Error('文件名不能包含路径分隔符');
   }
   const filePath = path.join(dirPath, fileName);
-  if (fs.existsSync(filePath)) {
+  if (fs.existsSync(filePath) && !overwrite) {
     throw new Error('目标文件已存在');
   }
   await fs.promises.writeFile(filePath, content, 'utf8');
   return filePath;
+}
+
+/** 重命名文件，可选覆盖已存在的目标文件 */
+export async function renameFileInPlace(
+  filePath: string,
+  newFileName: string,
+  overwrite = false
+): Promise<string> {
+  const trimmed = typeof newFileName === 'string' ? newFileName.trim() : '';
+  if (!trimmed) throw new Error('文件名不能为空');
+  if (/[/\\]/.test(trimmed)) {
+    throw new Error('文件名不能包含路径分隔符');
+  }
+  const resolved = path.resolve(filePath);
+  const dir = path.dirname(resolved);
+  const newPath = path.join(dir, trimmed);
+  if (path.resolve(newPath) === resolved) {
+    return resolved;
+  }
+  if (fs.existsSync(newPath)) {
+    if (!overwrite) throw new Error('目标文件已存在');
+    await fs.promises.unlink(newPath);
+  }
+  await fs.promises.rename(resolved, newPath);
+  return newPath;
 }
 
 /** 校验 path 是否在 base 下（用于 IPC 前的路径校验） */

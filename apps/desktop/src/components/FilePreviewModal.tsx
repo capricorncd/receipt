@@ -2,9 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { localFileUrl } from '../lib/local-file-url';
 import { t } from '../i18n';
+import { OverwriteConfirmDialog } from './OverwriteConfirmDialog';
 import { UiButton } from './ui';
 
 export type PreviewKind = 'image' | 'pdf' | 'text' | 'unsupported';
+
+function getParentDir(filePath: string): string {
+  const i = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+  return i >= 0 ? filePath.slice(0, i) : filePath;
+}
 
 interface FilePreviewModalProps {
   filePath: string;
@@ -21,6 +27,8 @@ export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: Fil
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const [overwriteTargetName, setOverwriteTargetName] = useState('');
 
   useEffect(() => {
     setEditName(fileName);
@@ -61,32 +69,53 @@ export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: Fil
     };
   }, [filePath]);
 
-  const handleSave = useCallback(async () => {
-    const trimmed = editName.trim();
-    if (!trimmed) {
-      setError(t('preview.nameEmpty'));
-      return;
-    }
-    if (trimmed === fileName) {
-      onClose();
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await window.electronAPI.renameFile(filePath, trimmed);
-      if (res.ok) {
-        onRenamed();
-        onClose();
-      } else {
-        setError(res.error ?? t('preview.saveFailed'));
+  const performRename = useCallback(
+    async (overwrite = false) => {
+      const trimmed = editName.trim();
+      if (!trimmed) {
+        setError(t('preview.nameEmpty'));
+        return;
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  }, [editName, fileName, filePath, onClose, onRenamed]);
+      if (trimmed === fileName) {
+        onClose();
+        return;
+      }
+
+      if (!overwrite) {
+        const dir = getParentDir(filePath);
+        const exists = await window.electronAPI.fileExistsInDir(dir, trimmed);
+        if (exists) {
+          setOverwriteTargetName(trimmed);
+          setShowOverwriteConfirm(true);
+          return;
+        }
+      }
+
+      setSaving(true);
+      setError(null);
+      try {
+        const res = await window.electronAPI.renameFile(filePath, trimmed, overwrite);
+        if (res.ok) {
+          onRenamed();
+          onClose();
+        } else {
+          setError(res.error ?? t('preview.saveFailed'));
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [editName, fileName, filePath, onClose, onRenamed]
+  );
+
+  const handleSave = useCallback(() => performRename(false), [performRename]);
+
+  const handleOverwriteConfirm = useCallback(async () => {
+    setShowOverwriteConfirm(false);
+    await performRename(true);
+  }, [performRename]);
 
   const handleOpenExternal = useCallback(async () => {
     await window.electronAPI.openPath(filePath);
@@ -149,9 +178,17 @@ export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: Fil
       onClick={onClose}
     >
       <div
-        className="flex h-[85vh] max-h-[900px] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-zinc-600 bg-zinc-900 shadow-2xl"
+        className="relative flex h-[85vh] max-h-[900px] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-zinc-600 bg-zinc-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
+        {showOverwriteConfirm && (
+          <OverwriteConfirmDialog
+            fileName={overwriteTargetName}
+            saving={saving}
+            onConfirm={handleOverwriteConfirm}
+            onCancel={() => setShowOverwriteConfirm(false)}
+          />
+        )}
         <div className="flex shrink-0 items-center justify-between border-b border-zinc-700 px-4 py-3">
           <span className="text-sm font-medium text-zinc-200">{t('preview.title')}</span>
           <button

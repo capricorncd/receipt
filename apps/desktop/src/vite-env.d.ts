@@ -23,12 +23,15 @@ declare global {
       readFileDataUrl(filePath: string): Promise<{ dataUrl: string } | { error: string }>;
       renameFile(
         filePath: string,
-        newFileName: string
+        newFileName: string,
+        overwrite?: boolean
       ): Promise<{ ok: boolean; newPath?: string; error?: string }>;
+      fileExistsInDir(dirPath: string, fileName: string): Promise<boolean>;
       createReceiptFile(
         dirPath: string,
         fileName: string,
-        content: string
+        content: string,
+        overwrite?: boolean
       ): Promise<{ ok: boolean; filePath?: string; error?: string }>;
       openPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
       exportCsv(payload: import('./types/export').ExportTablePayload): Promise<import('./types/export').ExportResult>;
