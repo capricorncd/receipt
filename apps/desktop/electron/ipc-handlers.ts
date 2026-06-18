@@ -28,10 +28,10 @@ import type { SDImageMetadata, PNGMetadata } from './types/metadata.js';
 import { addOpenedRoot, removeOpenedRoot, getOpenedRoots, validatePathUnderRoot } from './shared-state.js';
 import {
   writeCsvFile,
-  writePdfFile,
   defaultExportPath,
   type ExportTablePayload,
 } from './services/export-service.js';
+import { writePdfFile } from './services/pdf-export-service.js';
 
 const unwatchFns = new Map<string, () => void>();
 

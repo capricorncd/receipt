@@ -8,6 +8,19 @@ import { validatePathUnderRoot } from './shared-state.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'local',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+    },
+  },
+]);
+
 /** 开发环境：Vite 渲染进程地址；生产：打包后的 index.html */
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
 const PRELOAD_SCRIPT = path.join(__dirname, 'preload.js');
@@ -94,10 +107,10 @@ function setContentSecurityPolicy(): void {
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: local:",
+    "img-src 'self' data: local: blob:",
     "frame-src 'self' local: data: blob:",
-    "object-src 'self' local:",
-    "connect-src 'self' ws: wss: https:",
+    "object-src 'self' local: blob:",
+    "connect-src 'self' ws: wss: https: local: blob:",
     "frame-ancestors 'none'",
   ].join('; ');
   const ses = session.defaultSession;

@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { localFileUrl } from '../lib/local-file-url';
+import { dataUrlToBlobUrl } from '../lib/data-url-to-blob-url';
+import { joinFileName, splitFileName } from '../lib/filename-utils';
 import { t } from '../i18n';
 import { OverwriteConfirmDialog } from './OverwriteConfirmDialog';
 import { UiButton } from './ui';
@@ -20,94 +22,109 @@ interface FilePreviewModalProps {
 }
 
 export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: FilePreviewModalProps) {
-  const [editName, setEditName] = useState(fileName);
+  const fileExt = useMemo(() => splitFileName(fileName).ext, [fileName]);
+  const originalBaseName = useMemo(() => splitFileName(fileName).baseName, [fileName]);
+  const [editBaseName, setEditBaseName] = useState(() => splitFileName(fileName).baseName);
   const [kind, setKind] = useState<PreviewKind | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
-  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
   const [overwriteTargetName, setOverwriteTargetName] = useState('');
 
+  const isDirty = editBaseName.trim() !== originalBaseName;
+
   useEffect(() => {
-    setEditName(fileName);
-  }, [fileName, filePath]);
+    setEditBaseName(originalBaseName);
+  }, [originalBaseName, filePath]);
 
   useEffect(() => {
     let cancelled = false;
+    let blobUrl: string | null = null;
+
     (async () => {
       setLoading(true);
-      setError(null);
+      setPreviewError(null);
       setTextContent(null);
-      setPdfDataUrl(null);
+      setPdfBlobUrl(null);
       setKind(null);
+
       try {
         const info = await window.electronAPI.getFilePreviewInfo(filePath);
         if (cancelled) return;
-        setKind(info.kind as PreviewKind);
+        const previewKind = info.kind as PreviewKind;
+        setKind(previewKind);
 
-        if (info.kind === 'text') {
+        if (previewKind === 'text') {
           const textRes = await window.electronAPI.readTextPreview(filePath);
           if (cancelled) return;
           if ('error' in textRes) throw new Error(textRes.error);
           setTextContent(textRes.content);
-        } else if (info.kind === 'pdf') {
+        } else if (previewKind === 'pdf') {
           const pdfRes = await window.electronAPI.readFileDataUrl(filePath);
           if (cancelled) return;
           if ('error' in pdfRes) throw new Error(pdfRes.error);
-          setPdfDataUrl(pdfRes.dataUrl);
+          blobUrl = dataUrlToBlobUrl(pdfRes.dataUrl);
+          setPdfBlobUrl(blobUrl);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setPreviewError(e instanceof Error ? e.message : String(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, [filePath]);
 
   const performRename = useCallback(
-    async (overwrite = false) => {
-      const trimmed = editName.trim();
-      if (!trimmed) {
-        setError(t('preview.nameEmpty'));
-        return;
+    async (overwrite = false): Promise<boolean> => {
+      const trimmedBase = editBaseName.trim();
+      if (!trimmedBase) {
+        setSaveError(t('preview.nameEmpty'));
+        return false;
       }
-      if (trimmed === fileName) {
-        onClose();
-        return;
+      const newFileName = joinFileName(trimmedBase, fileExt);
+      if (newFileName === fileName) {
+        return true;
       }
 
       if (!overwrite) {
         const dir = getParentDir(filePath);
-        const exists = await window.electronAPI.fileExistsInDir(dir, trimmed);
+        const exists = await window.electronAPI.fileExistsInDir(dir, newFileName);
         if (exists) {
-          setOverwriteTargetName(trimmed);
+          setOverwriteTargetName(newFileName);
           setShowOverwriteConfirm(true);
-          return;
+          return false;
         }
       }
 
       setSaving(true);
-      setError(null);
+      setSaveError(null);
       try {
-        const res = await window.electronAPI.renameFile(filePath, trimmed, overwrite);
+        const res = await window.electronAPI.renameFile(filePath, newFileName, overwrite);
         if (res.ok) {
           onRenamed();
           onClose();
-        } else {
-          setError(res.error ?? t('preview.saveFailed'));
+          return true;
         }
+        setSaveError(res.error ?? t('preview.saveFailed'));
+        return false;
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setSaveError(e instanceof Error ? e.message : String(e));
+        return false;
       } finally {
         setSaving(false);
       }
     },
-    [editName, fileName, filePath, onClose, onRenamed]
+    [editBaseName, fileExt, fileName, filePath, onClose, onRenamed]
   );
 
   const handleSave = useCallback(() => performRename(false), [performRename]);
@@ -117,18 +134,40 @@ export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: Fil
     await performRename(true);
   }, [performRename]);
 
+  const handleAttemptClose = useCallback(() => {
+    if (saving) return;
+    if (!isDirty) {
+      onClose();
+      return;
+    }
+    setShowCloseConfirm(true);
+  }, [saving, isDirty, onClose]);
+
+  const handleDiscardAndClose = useCallback(() => {
+    setShowCloseConfirm(false);
+    onClose();
+  }, [onClose]);
+
+  const handleSaveAndClose = useCallback(async () => {
+    setShowCloseConfirm(false);
+    await performRename(false);
+  }, [performRename]);
+
   const handleOpenExternal = useCallback(async () => {
     await window.electronAPI.openPath(filePath);
   }, [filePath]);
+
+  const showOpenExternal =
+    kind === 'pdf' || kind === 'unsupported' || previewError !== null;
 
   const renderPreview = () => {
     if (loading) {
       return <span className="text-sm text-zinc-500">{t('receipt.loading')}</span>;
     }
-    if (error && kind !== 'image') {
+    if (previewError) {
       return (
-        <div className="flex flex-col items-center gap-3 text-center">
-          <span className="text-sm text-red-300">{error}</span>
+        <div className="flex flex-col items-center gap-3 text-center text-sm text-zinc-500">
+          <p>{t('preview.previewFailed')}</p>
           <UiButton variant="outline" size="sm" onClick={handleOpenExternal}>
             {t('preview.openExternal')}
           </UiButton>
@@ -144,12 +183,12 @@ export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: Fil
         />
       );
     }
-    if (kind === 'pdf' && pdfDataUrl) {
+    if (kind === 'pdf' && pdfBlobUrl) {
       return (
-        <iframe
-          src={pdfDataUrl}
-          title={fileName}
-          className="h-full w-full min-h-[400px] rounded border border-zinc-700 bg-white"
+        <embed
+          src={pdfBlobUrl}
+          type="application/pdf"
+          className="h-full w-full bg-white"
         />
       );
     }
@@ -170,17 +209,43 @@ export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: Fil
     );
   };
 
+  const pdfReady = kind === 'pdf' && pdfBlobUrl && !previewError && !loading;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
     >
-      <div
-        className="relative flex h-[85vh] max-h-[900px] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-zinc-600 bg-zinc-900 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative flex h-[85vh] max-h-[900px] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-zinc-600 bg-zinc-900 shadow-2xl">
+        {showCloseConfirm && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
+            <div
+              className="w-full max-w-sm rounded-xl border border-zinc-600 bg-zinc-900 p-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-sm font-medium text-zinc-200">{t('addReceipt.unsavedTitle')}</p>
+              <p className="mt-2 text-sm text-zinc-400">{t('addReceipt.unsavedMessage')}</p>
+              <div className="mt-4 flex justify-end gap-2">
+                <UiButton
+                  variant="outline"
+                  size="md"
+                  onClick={() => setShowCloseConfirm(false)}
+                  disabled={saving}
+                >
+                  {t('addReceipt.unsavedCancel')}
+                </UiButton>
+                <UiButton variant="outline" size="md" onClick={handleDiscardAndClose} disabled={saving}>
+                  {t('addReceipt.unsavedDiscard')}
+                </UiButton>
+                <UiButton variant="primary" size="md" onClick={handleSaveAndClose} disabled={saving}>
+                  {saving ? t('preview.saving') : t('addReceipt.unsavedSave')}
+                </UiButton>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showOverwriteConfirm && (
           <OverwriteConfirmDialog
             fileName={overwriteTargetName}
@@ -189,12 +254,21 @@ export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: Fil
             onCancel={() => setShowOverwriteConfirm(false)}
           />
         )}
-        <div className="flex shrink-0 items-center justify-between border-b border-zinc-700 px-4 py-3">
-          <span className="text-sm font-medium text-zinc-200">{t('preview.title')}</span>
+
+        <div className="flex shrink-0 items-center gap-2 border-b border-zinc-700 px-4 py-3">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-200">
+            {t('preview.title')}
+          </span>
+          {showOpenExternal && (
+            <UiButton variant="outline" size="sm" onClick={handleOpenExternal}>
+              {t('preview.openExternal')}
+            </UiButton>
+          )}
           <button
             type="button"
-            onClick={onClose}
-            className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+            onClick={handleAttemptClose}
+            disabled={saving}
+            className="shrink-0 rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
             aria-label={t('preview.close')}
           >
             <X className="h-5 w-5" />
@@ -202,17 +276,21 @@ export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: Fil
         </div>
 
         <div className="relative min-h-0 flex-1 overflow-hidden bg-zinc-950/80">
-          <div className="absolute inset-0 flex items-stretch justify-center overflow-auto p-4">
-            {renderPreview()}
-          </div>
+          {pdfReady ? (
+            <div className="absolute inset-0">{renderPreview()}</div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center overflow-auto p-4">
+              {renderPreview()}
+            </div>
+          )}
         </div>
 
         <div className="shrink-0 space-y-3 border-t border-zinc-700 p-4">
           <label className="block text-xs text-zinc-400">{t('preview.filename')}</label>
           <input
             type="text"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
+            value={editBaseName}
+            onChange={(e) => setEditBaseName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -222,11 +300,11 @@ export function FilePreviewModal({ filePath, fileName, onClose, onRenamed }: Fil
             className="w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 font-mono text-sm text-zinc-200 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
             spellCheck={false}
           />
-          {error && kind === 'image' && <p className="text-xs text-red-300">{error}</p>}
+          {previewError && (
+            <p className="rounded-md bg-red-900/40 px-3 py-2 text-xs text-red-200">{previewError}</p>
+          )}
+          {saveError && <p className="text-xs text-red-300">{saveError}</p>}
           <div className="flex justify-end gap-2">
-            <UiButton variant="outline" size="md" onClick={onClose} disabled={saving}>
-              {t('preview.cancel')}
-            </UiButton>
             <UiButton variant="primary" size="md" onClick={handleSave} disabled={saving}>
               {saving ? t('preview.saving') : t('preview.save')}
             </UiButton>

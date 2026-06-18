@@ -6,6 +6,7 @@ import { buildExportPayload } from '../lib/build-export-payload';
 import { cn } from '../lib/cn';
 import { t } from '../i18n';
 import { AddReceiptModal } from './AddReceiptModal';
+import { ExportProgressModal, type ExportProgressStatus } from './ExportProgressModal';
 import { FileEditButton } from './FileEditButton';
 import { FilePreviewModal } from './FilePreviewModal';
 import { UiButton } from './ui';
@@ -33,6 +34,11 @@ export function ReceiptPanel() {
   const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [pdfExportProgress, setPdfExportProgress] = useState<{
+    status: ExportProgressStatus;
+    filePath?: string;
+    errorMessage?: string;
+  } | null>(null);
 
   const loadFiles = useCallback(async () => {
     if (!currentDir || !window.electronAPI?.listFiles) return;
@@ -144,13 +150,38 @@ export function ReceiptPanel() {
     }
     const payload = getExportPayload();
     if (!payload) return;
+
+    if (format === 'pdf') {
+      setPdfExportProgress({ status: 'exporting' });
+      setExporting(true);
+      setError(null);
+      try {
+        const res = await window.electronAPI.exportPdf(payload);
+        if (res.cancelled) {
+          setPdfExportProgress({ status: 'cancelled' });
+        } else if (res.ok) {
+          setPdfExportProgress({ status: 'success', filePath: res.filePath });
+        } else {
+          setPdfExportProgress({
+            status: 'error',
+            errorMessage: res.error ?? t('receipt.exportFailed'),
+          });
+        }
+      } catch (e) {
+        setPdfExportProgress({
+          status: 'error',
+          errorMessage: e instanceof Error ? e.message : String(e),
+        });
+      } finally {
+        setExporting(false);
+      }
+      return;
+    }
+
     setExporting(true);
     setError(null);
     try {
-      const res =
-        format === 'csv'
-          ? await window.electronAPI.exportCsv(payload)
-          : await window.electronAPI.exportPdf(payload);
+      const res = await window.electronAPI.exportCsv(payload);
       if (!res.ok && !res.cancelled) {
         setError(res.error ?? t('receipt.exportFailed'));
       }
@@ -189,6 +220,14 @@ export function ReceiptPanel() {
           categories={categories}
           onClose={() => setShowAddModal(false)}
           onSaved={loadFiles}
+        />
+      )}
+      {pdfExportProgress && (
+        <ExportProgressModal
+          status={pdfExportProgress.status}
+          filePath={pdfExportProgress.filePath}
+          errorMessage={pdfExportProgress.errorMessage}
+          onClose={() => setPdfExportProgress(null)}
         />
       )}
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-zinc-700 px-4">

@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { BrowserWindow } from 'electron';
 
 export interface ExportTablePayload {
   directory: string;
@@ -77,35 +76,6 @@ export function buildPdfHtml(payload: ExportTablePayload): string {
 export async function writeCsvFile(filePath: string, payload: ExportTablePayload): Promise<void> {
   const content = '\uFEFF' + buildCsvContent(payload);
   await fs.promises.writeFile(filePath, content, 'utf8');
-}
-
-export async function writePdfFile(filePath: string, payload: ExportTablePayload): Promise<void> {
-  const html = buildPdfHtml(payload);
-  const win = new BrowserWindow({
-    show: false,
-    webPreferences: {
-      sandbox: true,
-      contextIsolation: true,
-    },
-  });
-  try {
-    const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-    await win.loadURL(dataUrl);
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('PDF 生成超时')), 30000);
-      win.webContents.once('did-finish-load', () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-    });
-    const pdf = await win.webContents.printToPDF({
-      printBackground: true,
-      margins: { marginType: 'default' },
-    });
-    await fs.promises.writeFile(filePath, pdf);
-  } finally {
-    if (!win.isDestroyed()) win.destroy();
-  }
 }
 
 export function defaultExportPath(directory: string, baseName: string, ext: string): string {
