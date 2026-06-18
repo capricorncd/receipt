@@ -1,4 +1,5 @@
 import { CheckCircle2, Loader2, X, XCircle } from 'lucide-react';
+import { useCallback, useState } from 'react';
 import { cn } from '../lib/cn';
 import { t } from '../i18n';
 import { UiButton } from './ui';
@@ -19,6 +20,16 @@ export function ExportProgressModal({
   onClose,
 }: ExportProgressModalProps) {
   const isExporting = status === 'exporting';
+  const [showFolderError, setShowFolderError] = useState<string | null>(null);
+
+  const handleShowInFolder = useCallback(async () => {
+    if (!filePath) return;
+    setShowFolderError(null);
+    const res = await window.electronAPI.showItemInFolder(filePath);
+    if (!res.ok) {
+      setShowFolderError(res.error ?? t('export.showInFolderFailed'));
+    }
+  }, [filePath]);
 
   return (
     <div
@@ -63,11 +74,21 @@ export function ExportProgressModal({
                 {errorMessage}
               </p>
             )}
+            {showFolderError && (
+              <p className="mt-2 rounded-md bg-red-900/40 px-3 py-2 text-xs text-red-200">
+                {showFolderError}
+              </p>
+            )}
           </div>
         </div>
-        <div className="mt-5 flex justify-end">
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          {status === 'success' && filePath && (
+            <UiButton variant="primary" size="md" onClick={handleShowInFolder}>
+              {t('export.showInFolder')}
+            </UiButton>
+          )}
           <UiButton
-            variant={status === 'success' ? 'primary' : 'outline'}
+            variant="outline"
             size="md"
             onClick={onClose}
             disabled={isExporting}

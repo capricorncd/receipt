@@ -357,6 +357,25 @@ export function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    'fs:showItemInFolder',
+    async (_, filePath: string): Promise<{ ok: boolean; error?: string }> => {
+      if (!filePath || typeof filePath !== 'string') {
+        return { ok: false, error: '无效路径' };
+      }
+      try {
+        const resolved = path.resolve(filePath);
+        if (!fs.existsSync(resolved)) {
+          return { ok: false, error: '文件不存在' };
+        }
+        shell.showItemInFolder(resolved);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+  );
+
+  ipcMain.handle(
     'fs:openPath',
     async (_, filePath: string): Promise<{ ok: boolean; error?: string }> => {
       if (!validateUnderRoot(filePath)) {

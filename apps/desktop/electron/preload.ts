@@ -116,6 +116,13 @@ const electronAPI = {
   openPath(filePath: string): Promise<{ ok: boolean; error?: string }> {
     return ipcRenderer.invoke('fs:openPath', filePath) as Promise<{ ok: boolean; error?: string }>;
   },
+  /** 在文件管理器中打开所在目录并选中文件 */
+  showItemInFolder(filePath: string): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke('fs:showItemInFolder', filePath) as Promise<{
+      ok: boolean;
+      error?: string;
+    }>;
+  },
   exportCsv(payload: {
     directory: string;
     baseName: string;

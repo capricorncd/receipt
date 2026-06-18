@@ -34,6 +34,7 @@ declare global {
         overwrite?: boolean
       ): Promise<{ ok: boolean; filePath?: string; error?: string }>;
       openPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
+      showItemInFolder(filePath: string): Promise<{ ok: boolean; error?: string }>;
       exportCsv(payload: import('./types/export').ExportTablePayload): Promise<import('./types/export').ExportResult>;
       exportPdf(payload: import('./types/export').ExportTablePayload): Promise<import('./types/export').ExportResult>;
       onDirChanged(
