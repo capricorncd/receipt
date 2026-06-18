@@ -14,6 +14,7 @@ import {
   listDirectories,
   watchDirectory,
   isPathUnderBase,
+  createTextFile,
 } from './services/file-service.js';
 import {
   getPreviewKind,
@@ -364,6 +365,32 @@ export function registerIpcHandlers(): void {
         const err = await shell.openPath(path.resolve(filePath));
         if (err) return { ok: false, error: err };
         return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'fs:createReceiptFile',
+    async (
+      _,
+      dirPath: string,
+      fileName: string,
+      content: string
+    ): Promise<{ ok: boolean; filePath?: string; error?: string }> => {
+      if (!dirPath || typeof dirPath !== 'string') {
+        return { ok: false, error: '无效目录' };
+      }
+      const resolvedDir = path.resolve(dirPath);
+      const roots = getOpenedRoots();
+      const underAny = roots.some((root) => isPathUnderBase(resolvedDir, root));
+      if (!underAny) {
+        return { ok: false, error: '路径不在当前工作目录内' };
+      }
+      try {
+        const filePath = await createTextFile(resolvedDir, fileName, content ?? '');
+        return { ok: true, filePath };
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) };
       }

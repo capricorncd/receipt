@@ -63,6 +63,18 @@ const electronAPI = {
       error?: string;
     }>;
   },
+  /** 在当前目录下创建小票文本文件 */
+  createReceiptFile(
+    dirPath: string,
+    fileName: string,
+    content: string
+  ): Promise<{ ok: boolean; filePath?: string; error?: string }> {
+    return ipcRenderer.invoke('fs:createReceiptFile', dirPath, fileName, content) as Promise<{
+      ok: boolean;
+      filePath?: string;
+      error?: string;
+    }>;
+  },
   /** 删除文件（仅限当前工作目录内） */
   deleteFile(filePath: string): Promise<{ ok: boolean; error?: string }> {
     return ipcRenderer.invoke('fs:deleteFile', filePath) as Promise<{ ok: boolean; error?: string }>;

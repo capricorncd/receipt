@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../stores/app-store';
 import { classifyFolderFiles, formatDeclareRate, formatPeriod, formatUsageRatio } from '../lib/receipt-parser';
 import { buildExportPayload } from '../lib/build-export-payload';
 import { cn } from '../lib/cn';
 import { t } from '../i18n';
+import { AddReceiptModal } from './AddReceiptModal';
 import { FileEditButton } from './FileEditButton';
 import { FilePreviewModal } from './FilePreviewModal';
 import { UiButton } from './ui';
@@ -30,6 +31,7 @@ export function ReceiptPanel() {
   const [mainTab, setMainTab] = useState<MainTab>('receipts');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const loadFiles = useCallback(async () => {
@@ -181,6 +183,14 @@ export function ReceiptPanel() {
           onRenamed={loadFiles}
         />
       )}
+      {showAddModal && currentDir && (
+        <AddReceiptModal
+          dirPath={currentDir}
+          categories={categories}
+          onClose={() => setShowAddModal(false)}
+          onSaved={loadFiles}
+        />
+      )}
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-zinc-700 px-4">
         <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-200" title={currentDir}>
           {dirName}
@@ -238,16 +248,28 @@ export function ReceiptPanel() {
             )}
           </button>
         </div>
-        <button
-          type="button"
-          onClick={handleRefresh}
-          disabled={loading || exporting}
-          className="mb-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
-          title={t('receipt.refreshTitle')}
-        >
-          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          {t('receipt.refresh')}
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            disabled={loading || exporting}
+            className="mb-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
+            title={t('addReceipt.title')}
+          >
+            <Plus className="h-4 w-4" />
+            {t('addReceipt.add')}
+          </button>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={loading || exporting}
+            className="mb-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
+            title={t('receipt.refreshTitle')}
+          >
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+            {t('receipt.refresh')}
+          </button>
+        </div>
       </div>
 
       {error && (

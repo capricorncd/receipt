@@ -79,5 +79,25 @@ export function watchDirectory(
   };
 }
 
+/** 在指定目录下创建文本文件（不覆盖已存在文件） */
+export async function createTextFile(
+  dirPath: string,
+  fileName: string,
+  content: string
+): Promise<string> {
+  if (!fileName || typeof fileName !== 'string') {
+    throw new Error('无效文件名');
+  }
+  if (/[/\\]/.test(fileName)) {
+    throw new Error('文件名不能包含路径分隔符');
+  }
+  const filePath = path.join(dirPath, fileName);
+  if (fs.existsSync(filePath)) {
+    throw new Error('目标文件已存在');
+  }
+  await fs.promises.writeFile(filePath, content, 'utf8');
+  return filePath;
+}
+
 /** 校验 path 是否在 base 下（用于 IPC 前的路径校验） */
 export { isPathUnderBase };

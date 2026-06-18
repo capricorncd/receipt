@@ -25,6 +25,11 @@ declare global {
         filePath: string,
         newFileName: string
       ): Promise<{ ok: boolean; newPath?: string; error?: string }>;
+      createReceiptFile(
+        dirPath: string,
+        fileName: string,
+        content: string
+      ): Promise<{ ok: boolean; filePath?: string; error?: string }>;
       openPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
       exportCsv(payload: import('./types/export').ExportTablePayload): Promise<import('./types/export').ExportResult>;
       exportPdf(payload: import('./types/export').ExportTablePayload): Promise<import('./types/export').ExportResult>;
