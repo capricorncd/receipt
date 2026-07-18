@@ -1,7 +1,7 @@
 import { app, BrowserWindow, nativeImage, shell, protocol, session } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import { getMimeType } from './services/preview-service.js';
+import { readImageForBrowser } from './services/preview-service.js';
 import { fileURLToPath } from 'url';
 import { registerIpcHandlers, onAppQuit, setupAppMenu } from './ipc-handlers.js';
 import { validatePathUnderRoot } from './shared-state.js';
@@ -91,9 +91,9 @@ function registerLocalFileProtocol(): void {
     }
     try {
       const resolved = path.resolve(filePath);
-      const data = await fs.promises.readFile(resolved);
-      return new Response(data, {
-        headers: { 'Content-Type': getMimeType(resolved) },
+      const { data, mime } = await readImageForBrowser(resolved);
+      return new Response(Buffer.from(data), {
+        headers: { 'Content-Type': mime },
       });
     } catch {
       return new Response('Not found', { status: 404 });

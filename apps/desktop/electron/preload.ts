@@ -80,6 +80,51 @@ const electronAPI = {
       error?: string;
     }>;
   },
+  /** 弹出系统文件选择器，选择待添加的小票源文件，返回其绝对路径 */
+  selectReceiptSourceFile(): Promise<string | null> {
+    return ipcRenderer.invoke('dialog:selectReceiptSourceFile') as Promise<string | null>;
+  },
+  /** 预览尚未导入的外部文件（不受已打开目录限制） */
+  getPickedFilePreviewInfo(filePath: string): Promise<{ kind: string; fileName: string }> {
+    return ipcRenderer.invoke('fs:getPickedFilePreviewInfo', filePath) as Promise<{
+      kind: string;
+      fileName: string;
+    }>;
+  },
+  readPickedTextPreview(
+    filePath: string
+  ): Promise<{ content: string; truncated: boolean } | { error: string }> {
+    return ipcRenderer.invoke('fs:readPickedTextPreview', filePath) as Promise<
+      { content: string; truncated: boolean } | { error: string }
+    >;
+  },
+  readPickedFileDataUrl(filePath: string): Promise<{ dataUrl: string } | { error: string }> {
+    return ipcRenderer.invoke('fs:readPickedFileDataUrl', filePath) as Promise<
+      { dataUrl: string } | { error: string }
+    >;
+  },
+  /** 用系统默认应用打开尚未导入的外部文件 */
+  openPickedPath(filePath: string): Promise<{ ok: boolean; error?: string }> {
+    return ipcRenderer.invoke('fs:openPickedPath', filePath) as Promise<{
+      ok: boolean;
+      error?: string;
+    }>;
+  },
+  /** 将选中的源文件保存一份到当前目录，使用生成的小票文件名（保留原文件） */
+  importReceiptFile(
+    sourcePath: string,
+    dirPath: string,
+    fileName: string,
+    overwrite?: boolean
+  ): Promise<{ ok: boolean; filePath?: string; error?: string }> {
+    return ipcRenderer.invoke(
+      'fs:importReceiptFile',
+      sourcePath,
+      dirPath,
+      fileName,
+      overwrite
+    ) as Promise<{ ok: boolean; filePath?: string; error?: string }>;
+  },
   /** 删除文件（仅限当前工作目录内） */
   deleteFile(filePath: string): Promise<{ ok: boolean; error?: string }> {
     return ipcRenderer.invoke('fs:deleteFile', filePath) as Promise<{ ok: boolean; error?: string }>;

@@ -23,11 +23,14 @@ export interface ReceiptFileNameInput {
   price: string;
   type: string;
   description: string;
+  /** 文件后缀（含 `.`），默认 `.txt` */
+  ext?: string;
 }
 
 export function buildReceiptFileName(input: ReceiptFileNameInput): string {
   const desc = input.description.trim() || 'memo';
-  return `${input.dateRaw}-${input.timeRaw}-${input.price.trim()}-${input.type.trim()}-${desc}.txt`;
+  const ext = input.ext || '.txt';
+  return `${input.dateRaw}-${input.timeRaw}-${input.price.trim()}-${input.type.trim()}-${desc}${ext}`;
 }
 
 /** 将 yyyy-MM-dd 转为 yyyyMMdd */

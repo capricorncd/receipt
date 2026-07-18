@@ -1,7 +1,10 @@
 import fs from 'fs';
 import path from 'path';
+import convert from 'heic-convert';
 
-const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp']);
+/** iPhone 拍摄的照片默认是 HEIC/HEIF 格式，Chromium 无法原生解码，预览时需转码为 JPEG */
+const HEIC_EXT = new Set(['.heic', '.heif']);
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', ...HEIC_EXT]);
 const PDF_EXT = new Set(['.pdf']);
 const TEXT_EXT = new Set([
   '.txt',
@@ -29,6 +32,8 @@ const MIME_BY_EXT: Record<string, string> = {
   '.webp': 'image/webp',
   '.gif': 'image/gif',
   '.bmp': 'image/bmp',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
   '.pdf': 'application/pdf',
   '.txt': 'text/plain;charset=utf-8',
   '.csv': 'text/plain;charset=utf-8',
@@ -64,10 +69,26 @@ export async function readTextPreview(
   return { content, truncated };
 }
 
-/** 读取文件为 data URL，供 PDF 等内嵌预览 */
-export async function readFileAsDataUrl(filePath: string): Promise<string> {
+function isHeicFile(filePath: string): boolean {
+  return HEIC_EXT.has(path.extname(filePath).toLowerCase());
+}
+
+/**
+ * 读取图片/PDF 字节数据，供浏览器直接渲染。
+ * HEIC/HEIF（iPhone 拍照默认格式）会被转码为 JPEG，因为 Chromium 无法原生解码。
+ */
+export async function readImageForBrowser(filePath: string): Promise<{ data: Buffer; mime: string }> {
   const buf = await fs.promises.readFile(filePath);
-  const mime = getMimeType(filePath);
-  const base64 = buf.toString('base64');
+  if (isHeicFile(filePath)) {
+    const output = await convert({ buffer: buf, format: 'JPEG', quality: 0.9 });
+    return { data: Buffer.from(output), mime: 'image/jpeg' };
+  }
+  return { data: buf, mime: getMimeType(filePath) };
+}
+
+/** 读取文件为 data URL，供图片、PDF 等内嵌预览 */
+export async function readFileAsDataUrl(filePath: string): Promise<string> {
+  const { data, mime } = await readImageForBrowser(filePath);
+  const base64 = data.toString('base64');
   return `data:${mime};base64,${base64}`;
 }

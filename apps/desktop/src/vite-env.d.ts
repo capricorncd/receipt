@@ -33,6 +33,19 @@ declare global {
         content: string,
         overwrite?: boolean
       ): Promise<{ ok: boolean; filePath?: string; error?: string }>;
+      selectReceiptSourceFile(): Promise<string | null>;
+      getPickedFilePreviewInfo(filePath: string): Promise<{ kind: PreviewKind; fileName: string }>;
+      readPickedTextPreview(
+        filePath: string
+      ): Promise<{ content: string; truncated: boolean } | { error: string }>;
+      readPickedFileDataUrl(filePath: string): Promise<{ dataUrl: string } | { error: string }>;
+      openPickedPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
+      importReceiptFile(
+        sourcePath: string,
+        dirPath: string,
+        fileName: string,
+        overwrite?: boolean
+      ): Promise<{ ok: boolean; filePath?: string; error?: string }>;
       openPath(filePath: string): Promise<{ ok: boolean; error?: string }>;
       showItemInFolder(filePath: string): Promise<{ ok: boolean; error?: string }>;
       exportCsv(payload: import('./types/export').ExportTablePayload): Promise<import('./types/export').ExportResult>;

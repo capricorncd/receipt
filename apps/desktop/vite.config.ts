@@ -16,7 +16,7 @@ export default defineConfig({
         vite: {
           build: {
             rollupOptions: {
-              external: ['exiftool-vendored'],
+              external: ['exiftool-vendored', 'heic-convert', 'libheif-js'],
             },
           },
         },

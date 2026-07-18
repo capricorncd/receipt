@@ -17,6 +17,7 @@ import {
   createTextFile,
   fileExistsInDir,
   renameFileInPlace,
+  importFile,
 } from './services/file-service.js';
 import {
   getPreviewKind,
@@ -320,6 +321,122 @@ export function registerIpcHandlers(): void {
         return { dataUrl };
       } catch (e) {
         return { error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+  );
+
+  /** 弹出系统文件选择器，选择一个待添加的小票源文件（图片/PDF/其他），返回其绝对路径 */
+  ipcMain.handle('dialog:selectReceiptSourceFile', async (): Promise<string | null> => {
+    const win = getMainWindow() ?? undefined;
+    const result = await dialog.showOpenDialog(win as InstanceType<typeof BrowserWindow>, {
+      properties: ['openFile'],
+      title: '选择小票文件',
+      filters: [
+        {
+          name: 'Receipts',
+          extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'heic', 'heif', 'pdf'],
+        },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return path.resolve(result.filePaths[0]!);
+  });
+
+  /** 预览尚未导入的外部文件（来自系统文件选择器），不受“已打开目录”限制 */
+  ipcMain.handle(
+    'fs:getPickedFilePreviewInfo',
+    async (_, filePath: string): Promise<{ kind: PreviewKind; fileName: string }> => {
+      if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
+        return { kind: 'unsupported', fileName: filePath ? path.basename(filePath) : '' };
+      }
+      const resolved = path.resolve(filePath);
+      return { kind: getPreviewKind(resolved), fileName: path.basename(resolved) };
+    }
+  );
+
+  ipcMain.handle(
+    'fs:readPickedTextPreview',
+    async (
+      _,
+      filePath: string
+    ): Promise<{ content: string; truncated: boolean } | { error: string }> => {
+      if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
+        return { error: '文件不存在' };
+      }
+      const resolved = path.resolve(filePath);
+      if (getPreviewKind(resolved) !== 'text') {
+        return { error: '不是文本文件' };
+      }
+      try {
+        return await readTextPreview(resolved);
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'fs:readPickedFileDataUrl',
+    async (_, filePath: string): Promise<{ dataUrl: string } | { error: string }> => {
+      if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
+        return { error: '文件不存在' };
+      }
+      const resolved = path.resolve(filePath);
+      const kind = getPreviewKind(resolved);
+      if (kind !== 'pdf' && kind !== 'image') {
+        return { error: '不支持此预览方式' };
+      }
+      try {
+        const dataUrl = await readFileAsDataUrl(resolved);
+        return { dataUrl };
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+  );
+
+  /** 用系统默认应用打开尚未导入的外部文件（不受已打开目录限制） */
+  ipcMain.handle(
+    'fs:openPickedPath',
+    async (_, filePath: string): Promise<{ ok: boolean; error?: string }> => {
+      if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
+        return { ok: false, error: '文件不存在' };
+      }
+      try {
+        const err = await shell.openPath(path.resolve(filePath));
+        if (err) return { ok: false, error: err };
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+  );
+
+  /** 将系统文件选择器选中的源文件保存一份到当前目录，使用生成的小票文件名 */
+  ipcMain.handle(
+    'fs:importReceiptFile',
+    async (
+      _,
+      sourcePath: string,
+      dirPath: string,
+      fileName: string,
+      overwrite = false
+    ): Promise<{ ok: boolean; filePath?: string; error?: string }> => {
+      if (!dirPath || typeof dirPath !== 'string') {
+        return { ok: false, error: '无效目录' };
+      }
+      const resolvedDir = path.resolve(dirPath);
+      const roots = getOpenedRoots();
+      const underAny = roots.some((root) => isPathUnderBase(resolvedDir, root));
+      if (!underAny) {
+        return { ok: false, error: '路径不在当前工作目录内' };
+      }
+      try {
+        const filePath = await importFile(sourcePath, resolvedDir, fileName, overwrite);
+        return { ok: true, filePath };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
       }
     }
   );

@@ -32,7 +32,7 @@ export function ReceiptPanel() {
   const [mainTab, setMainTab] = useState<MainTab>('receipts');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [addSourcePath, setAddSourcePath] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [pdfExportProgress, setPdfExportProgress] = useState<{
     status: ExportProgressStatus;
@@ -204,6 +204,11 @@ export function ReceiptPanel() {
     setPreviewTarget({ filePath, fileName });
   };
 
+  const handleAddClick = async () => {
+    const picked = await window.electronAPI.selectReceiptSourceFile();
+    if (picked) setAddSourcePath(picked);
+  };
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {previewTarget && (
@@ -214,11 +219,12 @@ export function ReceiptPanel() {
           onRenamed={loadFiles}
         />
       )}
-      {showAddModal && currentDir && (
+      {addSourcePath && currentDir && (
         <AddReceiptModal
           dirPath={currentDir}
+          sourcePath={addSourcePath}
           categories={categories}
-          onClose={() => setShowAddModal(false)}
+          onClose={() => setAddSourcePath(null)}
           onSaved={loadFiles}
         />
       )}
@@ -290,7 +296,7 @@ export function ReceiptPanel() {
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
-            onClick={() => setShowAddModal(true)}
+            onClick={handleAddClick}
             disabled={loading || exporting}
             className="mb-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
             title={t('addReceipt.title')}

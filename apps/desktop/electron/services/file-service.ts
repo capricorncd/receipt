@@ -131,5 +131,31 @@ export async function renameFileInPlace(
   return newPath;
 }
 
+/** 将系统文件选择器选中的外部文件保存一份到指定目录，使用新文件名（不改动原文件） */
+export async function importFile(
+  sourcePath: string,
+  dirPath: string,
+  fileName: string,
+  overwrite = false
+): Promise<string> {
+  if (!fileName || typeof fileName !== 'string') {
+    throw new Error('无效文件名');
+  }
+  if (/[/\\]/.test(fileName)) {
+    throw new Error('文件名不能包含路径分隔符');
+  }
+  const resolvedSource = path.resolve(sourcePath);
+  const stat = await fs.promises.stat(resolvedSource).catch(() => null);
+  if (!stat || !stat.isFile()) {
+    throw new Error('源文件不存在');
+  }
+  const targetPath = path.join(dirPath, fileName);
+  if (fs.existsSync(targetPath) && !overwrite) {
+    throw new Error('目标文件已存在');
+  }
+  await fs.promises.copyFile(resolvedSource, targetPath);
+  return targetPath;
+}
+
 /** 校验 path 是否在 base 下（用于 IPC 前的路径校验） */
 export { isPathUnderBase };
