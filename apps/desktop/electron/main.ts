@@ -53,6 +53,9 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
+      // Electron's built-in PDF viewer only activates on <embed>/<object> when
+      // this is enabled; without it the FilePreviewModal PDF preview renders blank.
+      plugins: true,
     },
     show: false,
   });
@@ -115,7 +118,12 @@ function setContentSecurityPolicy(): void {
   ].join('; ');
   const ses = session.defaultSession;
   ses.webRequest.onHeadersReceived((details, callback) => {
-    if (details.resourceType === 'mainFrame') {
+    // Electron's built-in PDF viewer runs as a chrome-extension:// mainFrame
+    // guest page (loaded to render <embed type="application/pdf">). Stamping
+    // our app CSP onto it blocks its own chrome://resources scripts/styles,
+    // leaving the PDF preview blank — so only touch our own app frames.
+    const isOwnAppFrame = details.url.startsWith('http://') || details.url.startsWith('file://');
+    if (details.resourceType === 'mainFrame' && isOwnAppFrame) {
       const headers = { ...details.responseHeaders };
       headers['Content-Security-Policy'] = [csp];
       callback({ responseHeaders: headers });

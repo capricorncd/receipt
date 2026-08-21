@@ -18,6 +18,7 @@ import {
   fileExistsInDir,
   renameFileInPlace,
   importFile,
+  writeImageFile,
 } from './services/file-service.js';
 import {
   getPreviewKind,
@@ -528,6 +529,38 @@ export function registerIpcHandlers(): void {
       }
       try {
         const filePath = await createTextFile(resolvedDir, fileName, content ?? '', overwrite);
+        return { ok: true, filePath };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+  );
+
+  /** 将图片编辑器导出的图片（data URL）写入当前目录下的文件，可用于原地覆盖或另存为新文件名 */
+  ipcMain.handle(
+    'fs:writeImage',
+    async (
+      _,
+      dirPath: string,
+      fileName: string,
+      dataUrl: string,
+      overwrite = false
+    ): Promise<{ ok: boolean; filePath?: string; error?: string }> => {
+      if (!dirPath || typeof dirPath !== 'string') {
+        return { ok: false, error: '无效目录' };
+      }
+      const resolvedDir = path.resolve(dirPath);
+      const roots = getOpenedRoots();
+      const underAny = roots.some((root) => isPathUnderBase(resolvedDir, root));
+      if (!underAny) {
+        return { ok: false, error: '路径不在当前工作目录内' };
+      }
+      if (!fileName || typeof fileName !== 'string' || /[/\\]/.test(fileName)) {
+        return { ok: false, error: '无效文件名' };
+      }
+      const filePath = path.join(resolvedDir, fileName);
+      try {
+        await writeImageFile(filePath, dataUrl, overwrite);
         return { ok: true, filePath };
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) };

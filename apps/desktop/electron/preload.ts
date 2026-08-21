@@ -80,6 +80,19 @@ const electronAPI = {
       error?: string;
     }>;
   },
+  /** 将图片编辑器导出的图片（data URL）写入当前目录下的文件，可原地覆盖或另存为新文件名 */
+  writeImage(
+    dirPath: string,
+    fileName: string,
+    dataUrl: string,
+    overwrite?: boolean
+  ): Promise<{ ok: boolean; filePath?: string; error?: string }> {
+    return ipcRenderer.invoke('fs:writeImage', dirPath, fileName, dataUrl, overwrite) as Promise<{
+      ok: boolean;
+      filePath?: string;
+      error?: string;
+    }>;
+  },
   /** 弹出系统文件选择器，选择待添加的小票源文件，返回其绝对路径 */
   selectReceiptSourceFile(): Promise<string | null> {
     return ipcRenderer.invoke('dialog:selectReceiptSourceFile') as Promise<string | null>;

@@ -33,6 +33,12 @@ declare global {
         content: string,
         overwrite?: boolean
       ): Promise<{ ok: boolean; filePath?: string; error?: string }>;
+      writeImage(
+        dirPath: string,
+        fileName: string,
+        dataUrl: string,
+        overwrite?: boolean
+      ): Promise<{ ok: boolean; filePath?: string; error?: string }>;
       selectReceiptSourceFile(): Promise<string | null>;
       getPickedFilePreviewInfo(filePath: string): Promise<{ kind: PreviewKind; fileName: string }>;
       readPickedTextPreview(

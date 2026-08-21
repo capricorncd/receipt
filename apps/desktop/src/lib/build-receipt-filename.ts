@@ -40,6 +40,11 @@ export function toDateRaw(isoDate: string): string {
   return `${y}${m.padStart(2, '0')}${d.padStart(2, '0')}`;
 }
 
+/** 将 yyyyMMdd 转为 yyyy-MM-dd */
+export function fromDateRaw(dateRaw: string): string {
+  return `${dateRaw.slice(0, 4)}-${dateRaw.slice(4, 6)}-${dateRaw.slice(6, 8)}`;
+}
+
 /**
  * 时分秒均未选择时返回 120000；否则缺失部分补 00。
  */

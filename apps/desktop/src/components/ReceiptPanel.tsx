@@ -215,6 +215,7 @@ export function ReceiptPanel() {
         <FilePreviewModal
           filePath={previewTarget.filePath}
           fileName={previewTarget.fileName}
+          categories={categories}
           onClose={() => setPreviewTarget(null)}
           onRenamed={loadFiles}
         />

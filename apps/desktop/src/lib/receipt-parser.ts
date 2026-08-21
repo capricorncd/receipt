@@ -133,6 +133,7 @@ export function parseReceiptFileName(fileName: string, filePath: string): Receip
     date: formatDisplayDate(dateRaw!, timeRaw),
     dateRaw: dateRaw!,
     timeRaw: timeRaw!,
+    priceRaw: priceStr!,
     type: newType,
     description,
     cost,

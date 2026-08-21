@@ -1,4 +1,5 @@
 import './index.css';
+import '@canvas-studio/ui-react/styles.css';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 

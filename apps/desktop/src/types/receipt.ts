@@ -23,6 +23,8 @@ export interface ReceiptRecord {
   dateRaw: string;
   /** 时间 HHmmss */
   timeRaw: string;
+  /** 文件名中的原始价格段（如 10000x0.8x1_3），供编辑时回填 */
+  priceRaw: string;
   type: string;
   description: string;
   cost: TaxDeclareAmount;

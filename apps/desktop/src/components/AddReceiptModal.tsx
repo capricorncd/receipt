@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { CanvasEditor, type CanvasEditorHandle } from '@canvas-studio/ui-react';
+import type { ExportFormat } from '@canvas-studio/core';
 import {
   buildReceiptFileName,
   getDefaultReceiptDate,
@@ -9,11 +11,16 @@ import {
 import { formatPrice, tryParseReceiptFileName } from '../lib/receipt-parser';
 import { splitFileName } from '../lib/filename-utils';
 import { dataUrlToBlobUrl } from '../lib/data-url-to-blob-url';
+import { blobToDataUrl } from '../lib/blob-to-data-url';
+import { CATEGORY_OTHER } from '../lib/receipt-form-options';
 import { t } from '../i18n';
 import { UiButton } from './ui';
 import { OverwriteConfirmDialog } from './OverwriteConfirmDialog';
+import { FilenameField } from './FilenameField';
+import { ReceiptDetailFields } from './ReceiptDetailFields';
 
 type PreviewKind = 'image' | 'pdf' | 'text' | 'unsupported';
+type SaveImageFormat = 'jpg' | 'png';
 
 interface AddReceiptModalProps {
   dirPath: string;
@@ -22,10 +29,6 @@ interface AddReceiptModalProps {
   onClose: () => void;
   onSaved: () => void;
 }
-
-const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-const MIN_SEC_OPTIONS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
-const CATEGORY_OTHER = '__other__';
 
 export function AddReceiptModal({
   dirPath,
@@ -38,6 +41,8 @@ export function AddReceiptModal({
 
   const [sourcePath, setSourcePath] = useState(initialSourcePath);
   const sourceExt = useMemo(() => splitFileName(sourcePath.replace(/^.*[/\\]/, '')).ext, [sourcePath]);
+  const editorRef = useRef<CanvasEditorHandle>(null);
+  const [saveFormat, setSaveFormat] = useState<SaveImageFormat>('jpg');
 
   const [date, setDate] = useState(defaultDate);
   const [hour, setHour] = useState('');
@@ -110,6 +115,14 @@ export function AddReceiptModal({
   const resolvedType =
     categoryKey === CATEGORY_OTHER ? customType.trim() : categoryKey.trim();
 
+  // Images are re-encoded through the editor at the chosen save format, so the
+  // saved extension follows that choice rather than the original picked file's
+  // extension; other file kinds are copied as-is and keep their own extension.
+  const effectiveExt = useMemo(
+    () => (previewKind === 'image' ? (saveFormat === 'jpg' ? '.jpg' : '.png') : sourceExt),
+    [previewKind, saveFormat, sourceExt]
+  );
+
   const isDirty = useMemo(
     () =>
       date !== defaultDate ||
@@ -137,12 +150,12 @@ export function AddReceiptModal({
         price: trimmedPrice,
         type: trimmedType,
         description,
-        ext: sourceExt,
+        ext: effectiveExt,
       });
     } catch {
       return '';
     }
-  }, [date, hour, minute, second, price, resolvedType, description, sourceExt]);
+  }, [date, hour, minute, second, price, resolvedType, description, effectiveExt]);
 
   const performSave = useCallback(
     async (overwrite = false): Promise<boolean> => {
@@ -177,7 +190,7 @@ export function AddReceiptModal({
         price: trimmedPrice,
         type: trimmedType,
         description,
-        ext: sourceExt,
+        ext: effectiveExt,
       });
 
       if (!tryParseReceiptFileName(fileName, '')) {
@@ -196,6 +209,29 @@ export function AddReceiptModal({
       setSaving(true);
       setError(null);
       try {
+        if (previewKind === 'image') {
+          if (!editorRef.current) {
+            setError(t('addReceipt.saveFailed'));
+            return false;
+          }
+          const format: ExportFormat = saveFormat === 'jpg' ? 'jpeg' : 'png';
+          const quality = saveFormat === 'jpg' ? 0.8 : undefined;
+          const blob = await editorRef.current.exportBlob(format, { quality });
+          if (!blob) {
+            setError(t('addReceipt.saveFailed'));
+            return false;
+          }
+          const dataUrl = await blobToDataUrl(blob);
+          const res = await window.electronAPI.writeImage(dirPath, fileName, dataUrl, overwrite);
+          if (res.ok) {
+            onSaved();
+            onClose();
+            return true;
+          }
+          setError(res.error ?? t('addReceipt.saveFailed'));
+          return false;
+        }
+
         const res = await window.electronAPI.importReceiptFile(sourcePath, dirPath, fileName, overwrite);
         if (res.ok) {
           onSaved();
@@ -211,7 +247,22 @@ export function AddReceiptModal({
         setSaving(false);
       }
     },
-    [date, hour, minute, second, price, resolvedType, description, sourceExt, sourcePath, dirPath, onClose, onSaved]
+    [
+      date,
+      hour,
+      minute,
+      second,
+      price,
+      resolvedType,
+      description,
+      effectiveExt,
+      previewKind,
+      saveFormat,
+      sourcePath,
+      dirPath,
+      onClose,
+      onSaved,
+    ]
   );
 
   const handleSave = useCallback(() => performSave(false), [performSave]);
@@ -268,7 +319,14 @@ export function AddReceiptModal({
     }
     if (previewKind === 'image' && imageDataUrl) {
       return (
-        <img src={imageDataUrl} alt={sourcePath} className="max-h-full max-w-full object-contain" />
+        <CanvasEditor
+          key={sourcePath}
+          ref={editorRef}
+          initialImage={imageDataUrl}
+          showSaveProject={false}
+          showExport={false}
+          className="h-full w-full"
+        />
       );
     }
     if (previewKind === 'pdf' && pdfBlobUrl) {
@@ -292,6 +350,8 @@ export function AddReceiptModal({
   };
 
   const pdfReady = previewKind === 'pdf' && pdfBlobUrl && !previewError && !previewLoading;
+  const imageEditorReady =
+    previewKind === 'image' && !!imageDataUrl && !previewError && !previewLoading;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-zinc-900" role="dialog" aria-modal="true">
@@ -365,7 +425,7 @@ export function AddReceiptModal({
             </div>
           </div>
           <div className="relative min-h-0 flex-1 overflow-hidden bg-zinc-950/80">
-            {pdfReady ? (
+            {pdfReady || imageEditorReady ? (
               <div className="absolute inset-0">{renderPreview()}</div>
             ) : (
               <div className="absolute inset-0 flex items-center justify-center overflow-auto p-4">
@@ -377,120 +437,41 @@ export function AddReceiptModal({
 
         <div className="flex w-[380px] shrink-0 flex-col overflow-hidden border-l border-zinc-700">
           <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4">
-            <div>
-              <label className="mb-1 block text-xs text-zinc-400">{t('addReceipt.date')}</label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
-              />
-            </div>
+            <ReceiptDetailFields
+              date={date}
+              onDateChange={setDate}
+              hour={hour}
+              onHourChange={setHour}
+              minute={minute}
+              onMinuteChange={setMinute}
+              second={second}
+              onSecondChange={setSecond}
+              price={price}
+              onPriceChange={setPrice}
+              categoryKey={categoryKey}
+              onCategoryKeyChange={setCategoryKey}
+              customType={customType}
+              onCustomTypeChange={setCustomType}
+              categories={categories}
+              description={description}
+              onDescriptionChange={setDescription}
+            />
 
-            <div>
-              <label className="mb-1 block text-xs text-zinc-400">{t('addReceipt.time')}</label>
-              <div className="flex gap-2">
-                <select
-                  value={hour}
-                  onChange={(e) => setHour(e.target.value)}
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-600 bg-zinc-800 px-2 py-2 text-sm text-zinc-200 focus:border-brand focus:outline-none"
-                  aria-label={t('addReceipt.hour')}
-                >
-                  <option value="">{t('addReceipt.timeEmpty')}</option>
-                  {HOUR_OPTIONS.map((h) => (
-                    <option key={h} value={h}>
-                      {h}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={minute}
-                  onChange={(e) => setMinute(e.target.value)}
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-600 bg-zinc-800 px-2 py-2 text-sm text-zinc-200 focus:border-brand focus:outline-none"
-                  aria-label={t('addReceipt.minute')}
-                >
-                  <option value="">{t('addReceipt.timeEmpty')}</option>
-                  {MIN_SEC_OPTIONS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={second}
-                  onChange={(e) => setSecond(e.target.value)}
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-600 bg-zinc-800 px-2 py-2 text-sm text-zinc-200 focus:border-brand focus:outline-none"
-                  aria-label={t('addReceipt.second')}
-                >
-                  <option value="">{t('addReceipt.timeEmpty')}</option>
-                  {MIN_SEC_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <p className="mt-1 text-xs text-zinc-500">{t('addReceipt.timeHint')}</p>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-zinc-400">{t('receipt.colAmount')}</label>
-              <input
-                type="text"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="150"
-                className="w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
-                spellCheck={false}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-zinc-400">{t('receipt.colCategory')}</label>
-              <select
-                value={categoryKey}
-                onChange={(e) => setCategoryKey(e.target.value)}
-                className="w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
-              >
-                <option value="">{t('addReceipt.categoryPlaceholder')}</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-                <option value={CATEGORY_OTHER}>{t('addReceipt.categoryOther')}</option>
-              </select>
-              {categoryKey === CATEGORY_OTHER && (
-                <input
-                  type="text"
-                  value={customType}
-                  onChange={(e) => setCustomType(e.target.value)}
-                  placeholder={t('addReceipt.categoryCustomPlaceholder')}
-                  className="mt-2 w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
-                  spellCheck={false}
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-zinc-400">{t('receipt.colDescription')}</label>
-              <input
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
-                spellCheck={false}
-              />
-            </div>
-
-            {previewFileName && (
+            {previewKind === 'image' && (
               <div>
-                <label className="mb-1 block text-xs text-zinc-400">{t('addReceipt.fileNamePreview')}</label>
-                <p className="break-all rounded border border-zinc-700 bg-zinc-800/60 px-3 py-2 font-mono text-xs text-zinc-300">
-                  {previewFileName}
-                </p>
+                <label className="mb-1 block text-xs text-zinc-400">{t('addReceipt.saveFormat')}</label>
+                <select
+                  value={saveFormat}
+                  onChange={(e) => setSaveFormat(e.target.value as SaveImageFormat)}
+                  className="w-full rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
+                >
+                  <option value="jpg">JPG ({t('addReceipt.saveFormatJpgQuality')})</option>
+                  <option value="png">PNG</option>
+                </select>
               </div>
             )}
+
+            <FilenameField value={previewFileName} />
 
             {error && <p className="text-xs text-red-300">{error}</p>}
           </div>

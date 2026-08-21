@@ -106,6 +106,19 @@ export async function createTextFile(
   return filePath;
 }
 
+/** 将 data URL（图片编辑器导出的 PNG/JPEG/WebP）解码后写入指定路径，可选覆盖 */
+export async function writeImageFile(filePath: string, dataUrl: string, overwrite = false): Promise<void> {
+  const match = /^data:[^;]+;base64,(.*)$/.exec(dataUrl);
+  if (!match) {
+    throw new Error('无效的图片数据');
+  }
+  if (fs.existsSync(filePath) && !overwrite) {
+    throw new Error('目标文件已存在');
+  }
+  const buffer = Buffer.from(match[1]!, 'base64');
+  await fs.promises.writeFile(filePath, buffer);
+}
+
 /** 重命名文件，可选覆盖已存在的目标文件 */
 export async function renameFileInPlace(
   filePath: string,

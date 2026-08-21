@@ -16,3 +16,9 @@ export function joinFileName(baseName: string, ext: string): string {
   if (!ext) return trimmed;
   return trimmed + ext;
 }
+
+/** 取文件路径的父目录（跨平台，兼容 / 与 \） */
+export function getParentDir(filePath: string): string {
+  const i = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+  return i >= 0 ? filePath.slice(0, i) : filePath;
+}

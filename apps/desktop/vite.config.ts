@@ -30,6 +30,14 @@ export default defineConfig({
     ]),
     renderer(),
   ],
+  resolve: {
+    // @canvas-studio/ui-react is consumed via a local `file:` dependency; npm
+    // installs its own devDependencies for file: deps (unlike registry deps),
+    // which pulls in a second copy of react/react-dom under its nested
+    // node_modules. Force both to resolve to this app's single copy so two
+    // React instances never end up mounted in the same tree.
+    dedupe: ['react', 'react-dom'],
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
