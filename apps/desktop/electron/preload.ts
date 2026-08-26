@@ -171,6 +171,14 @@ const electronAPI = {
       error?: string;
     }>;
   },
+  /** 在同目录下复制一份文件，新文件名自动追加 Copy 后缀 */
+  copyFile(filePath: string): Promise<{ ok: boolean; filePath?: string; error?: string }> {
+    return ipcRenderer.invoke('fs:copyFile', filePath) as Promise<{
+      ok: boolean;
+      filePath?: string;
+      error?: string;
+    }>;
+  },
   openPath(filePath: string): Promise<{ ok: boolean; error?: string }> {
     return ipcRenderer.invoke('fs:openPath', filePath) as Promise<{ ok: boolean; error?: string }>;
   },

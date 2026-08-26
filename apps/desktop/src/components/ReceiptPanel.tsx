@@ -7,7 +7,7 @@ import { cn } from '../lib/cn';
 import { t } from '../i18n';
 import { AddReceiptModal } from './AddReceiptModal';
 import { ExportProgressModal, type ExportProgressStatus } from './ExportProgressModal';
-import { FileEditButton } from './FileEditButton';
+import { FileActionsMenu } from './FileActionsMenu';
 import { FilePreviewModal } from './FilePreviewModal';
 import { UiButton } from './ui';
 
@@ -383,7 +383,8 @@ export function ReceiptPanel() {
                   {filteredReceipts.map((row) => (
                     <tr
                       key={row.filePath}
-                      className="border-b border-zinc-800/80 text-zinc-300 hover:bg-zinc-800/50"
+                      onClick={() => openPreview(row.filePath, row.fileName)}
+                      className="cursor-pointer border-b border-zinc-800/80 text-zinc-300 hover:bg-zinc-800/50"
                       title={row.fileName}
                     >
                       <td className="whitespace-nowrap px-4 py-2">{row.date}</td>
@@ -401,9 +402,7 @@ export function ReceiptPanel() {
                         {row.description || '—'}
                       </td>
                       <td className="px-2 py-2 text-center">
-                        <FileEditButton
-                          onClick={() => openPreview(row.filePath, row.fileName)}
-                        />
+                        <FileActionsMenu filePath={row.filePath} onCopied={loadFiles} />
                       </td>
                     </tr>
                   ))}
@@ -423,11 +422,12 @@ export function ReceiptPanel() {
               {otherFiles.map((f) => (
                 <li
                   key={f.filePath}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800/50"
+                  onClick={() => openPreview(f.filePath, f.fileName)}
+                  className="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800/50"
                   title={f.filePath}
                 >
                   <span className="min-w-0 flex-1 truncate font-mono text-xs">{f.fileName}</span>
-                  <FileEditButton onClick={() => openPreview(f.filePath, f.fileName)} />
+                  <FileActionsMenu filePath={f.filePath} onCopied={loadFiles} />
                 </li>
               ))}
             </ul>

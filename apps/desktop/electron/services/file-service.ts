@@ -170,5 +170,24 @@ export async function importFile(
   return targetPath;
 }
 
+/** 在同目录下复制一份文件，新文件名为原文件名（不含扩展名）后追加 Copy，重名时依次追加 Copy2、Copy3… */
+export async function copyFileInPlace(filePath: string): Promise<string> {
+  const resolved = path.resolve(filePath);
+  const dir = path.dirname(resolved);
+  const ext = path.extname(resolved);
+  const base = path.basename(resolved, ext);
+
+  let candidate = `${base}Copy${ext}`;
+  let n = 2;
+  while (fs.existsSync(path.join(dir, candidate))) {
+    candidate = `${base}Copy${n}${ext}`;
+    n += 1;
+  }
+
+  const targetPath = path.join(dir, candidate);
+  await fs.promises.copyFile(resolved, targetPath);
+  return targetPath;
+}
+
 /** 校验 path 是否在 base 下（用于 IPC 前的路径校验） */
 export { isPathUnderBase };

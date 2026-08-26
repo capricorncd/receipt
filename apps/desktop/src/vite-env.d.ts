@@ -26,6 +26,7 @@ declare global {
         newFileName: string,
         overwrite?: boolean
       ): Promise<{ ok: boolean; newPath?: string; error?: string }>;
+      copyFile(filePath: string): Promise<{ ok: boolean; filePath?: string; error?: string }>;
       fileExistsInDir(dirPath: string, fileName: string): Promise<boolean>;
       createReceiptFile(
         dirPath: string,

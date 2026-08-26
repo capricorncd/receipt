@@ -19,6 +19,7 @@ import {
   renameFileInPlace,
   importFile,
   writeImageFile,
+  copyFileInPlace,
 } from './services/file-service.js';
 import {
   getPreviewKind,
@@ -468,6 +469,21 @@ export function registerIpcHandlers(): void {
       try {
         const newPath = await renameFileInPlace(path.resolve(filePath), newFileName, overwrite);
         return { ok: true, newPath };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    }
+  );
+
+  ipcMain.handle(
+    'fs:copyFile',
+    async (_, filePath: string): Promise<{ ok: boolean; filePath?: string; error?: string }> => {
+      if (!validateUnderRoot(filePath)) {
+        return { ok: false, error: '路径不在当前工作目录内' };
+      }
+      try {
+        const newPath = await copyFileInPlace(path.resolve(filePath));
+        return { ok: true, filePath: newPath };
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) };
       }
