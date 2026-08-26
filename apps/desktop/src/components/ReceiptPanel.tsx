@@ -28,6 +28,10 @@ export function ReceiptPanel() {
   const clearFolderData = useAppStore((s) => s.clearFolderData);
   const setLoading = useAppStore((s) => s.setLoading);
   const setError = useAppStore((s) => s.setError);
+  // t() reads a module-level variable, not React state, so this component only
+  // re-renders (and picks up the new strings) on locale change if it subscribes
+  // to something that changes — nothing else here does, so subscribe just for that.
+  useAppStore((s) => s.locale);
 
   const [mainTab, setMainTab] = useState<MainTab>('receipts');
   const [categoryFilter, setCategoryFilter] = useState<string>('');

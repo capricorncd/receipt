@@ -45,9 +45,9 @@ export function AddReceiptModal({
   const [saveFormat, setSaveFormat] = useState<SaveImageFormat>('jpg');
 
   const [date, setDate] = useState(defaultDate);
-  const [hour, setHour] = useState('');
-  const [minute, setMinute] = useState('');
-  const [second, setSecond] = useState('');
+  const [hour, setHour] = useState('12');
+  const [minute, setMinute] = useState('00');
+  const [second, setSecond] = useState('00');
   const [price, setPrice] = useState('');
   const [categoryKey, setCategoryKey] = useState('');
   const [customType, setCustomType] = useState('');
@@ -126,9 +126,9 @@ export function AddReceiptModal({
   const isDirty = useMemo(
     () =>
       date !== defaultDate ||
-      hour !== '' ||
-      minute !== '' ||
-      second !== '' ||
+      hour !== '12' ||
+      minute !== '00' ||
+      second !== '00' ||
       price.trim() !== '' ||
       categoryKey !== '' ||
       customType.trim() !== '' ||

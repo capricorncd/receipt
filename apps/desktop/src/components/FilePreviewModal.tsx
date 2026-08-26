@@ -92,15 +92,18 @@ export function FilePreviewModal({
         description: parsed.description,
       };
     } else {
+      // Unparseable filename (shown under "其他文件"): can't recover structured fields
+      // from it, so at least carry the original name into description instead of
+      // discarding it — the user would otherwise lose their only clue to what it was.
       next = {
         date: getDefaultReceiptDate(dirPath),
-        hour: '',
-        minute: '',
-        second: '',
+        hour: '12',
+        minute: '00',
+        second: '00',
         price: '',
         categoryKey: '',
         customType: '',
-        description: '',
+        description: splitFileName(fileName).baseName,
       };
     }
     setDate(next.date);
